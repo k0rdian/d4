@@ -1,9 +1,9 @@
 import logging
+import sys
 import threading
 import time
 
 import mss
-import mss.windows
 import numpy as np
 
 from src.config.ui import ResManager
@@ -11,7 +11,10 @@ from src.utils.misc import convert_args_to_numpy
 
 LOGGER = logging.getLogger(__name__)
 
-mss.windows.CAPTUREBLT = 0
+if sys.platform == "win32":
+    import mss.windows
+
+    mss.windows.CAPTUREBLT = 0
 cached_img_lock = threading.Lock()
 
 

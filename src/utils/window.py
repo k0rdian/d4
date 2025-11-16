@@ -1,15 +1,21 @@
 import ctypes
 import logging
 import os
+import sys
 import threading
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import cv2
+import mss
 import psutil
-from win32gui import ClientToScreen, EnumWindows, GetClientRect, GetWindowText
-from win32process import GetWindowThreadProcessId
+
+WINDOWS = sys.platform == "win32"
+
+if WINDOWS:
+    from win32gui import ClientToScreen, EnumWindows, GetClientRect, GetWindowText
+    from win32process import GetWindowThreadProcessId
 
 from src.cam import Cam
 from src.logger import LOG_DIR
@@ -23,13 +29,14 @@ DETECTION_WINDOW_FLAG = True
 DETECT_WINDOW_THREAD = None
 
 # Set the process DPI aware
-try:
-    ctypes.windll.shcore.SetProcessDpiAwareness(1)
-except Exception as e:
-    print(f"Exception: {e}")
-    print("This program requires Windows 8.1 or higher.")
-    print("The program will try to continue to run, but results may be inaccurate.")
-    ctypes.windll.user32.SetProcessDPIAware()
+if WINDOWS:
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except Exception as e:  # pragma: no cover - platform specific
+        print(f"Exception: {e}")
+        print("This program requires Windows 8.1 or higher.")
+        print("The program will try to continue to run, but results may be inaccurate.")
+        ctypes.windll.user32.SetProcessDPIAware()
 
 
 @dataclass
@@ -42,6 +49,8 @@ class WindowSpec:
 
 
 def _list_active_window_ids() -> list[int]:
+    if not WINDOWS:
+        return []
     window_list = []
     EnumWindows(lambda win, list_of_win: list_of_win.append(win), window_list)
     return window_list
@@ -59,10 +68,12 @@ def get_window_spec_id(window_spec: WindowSpec) -> int | None:
 
 
 def _get_window_name_from_id(hwnd: int) -> str:
-    return GetWindowText(hwnd)
+    return GetWindowText(hwnd) if WINDOWS else ""
 
 
 def _get_process_from_window_name(hwnd: int) -> str:
+    if not WINDOWS:
+        return ""
     try:
         pid = GetWindowThreadProcessId(hwnd)[1]
         return psutil.Process(pid).name().lower()
@@ -72,6 +83,12 @@ def _get_process_from_window_name(hwnd: int) -> str:
 
 def start_detecting_window(window_spec: WindowSpec):
     global DETECTION_WINDOW_FLAG, DETECT_WINDOW_THREAD
+    if not WINDOWS:
+        LOGGER.info("Windows APIs unavailable; using primary monitor bounds for camera region.")
+        with mss.mss() as sct:
+            monitor = sct.monitors[1]
+            Cam().update_window_pos(monitor.get("left", 0), monitor.get("top", 0), monitor["width"], monitor["height"])
+        return
     if DETECT_WINDOW_THREAD is None:
         LOGGER.info(f"Using WinAPI to search for window: {window_spec.process_name}")
         DETECTION_WINDOW_FLAG = True
@@ -87,13 +104,16 @@ def detect_window(window_spec: WindowSpec):
 
 
 def find_and_set_window_position(window_spec: WindowSpec):
-    hwnd = get_window_spec_id(window_spec)
-    if hwnd is not None:
-        pos = GetClientRect(hwnd)
-        top_left = ClientToScreen(hwnd, (pos[0], pos[1]))
-        if pos[2] > 0 and pos[3] > 0:
-            Cam().update_window_pos(top_left[0], top_left[1], pos[2], pos[3])
-    time.sleep(1)
+    if WINDOWS:
+        hwnd = get_window_spec_id(window_spec)
+        if hwnd is not None:
+            pos = GetClientRect(hwnd)
+            top_left = ClientToScreen(hwnd, (pos[0], pos[1]))
+            if pos[2] > 0 and pos[3] > 0:
+                Cam().update_window_pos(top_left[0], top_left[1], pos[2], pos[3])
+        time.sleep(1)
+    else:
+        time.sleep(1)
 
 
 def stop_detecting_window():
@@ -105,6 +125,9 @@ def stop_detecting_window():
 
 
 def move_window_to_foreground(window_spec: WindowSpec):
+    if not WINDOWS:
+        LOGGER.debug("Skipping move_window_to_foreground: requires Windows APIs")
+        return
     hwnd = get_window_spec_id(window_spec)
     if hwnd is not None:
         ctypes.windll.user32.ShowWindow(hwnd, 5)
@@ -112,6 +135,8 @@ def move_window_to_foreground(window_spec: WindowSpec):
 
 
 def is_window_foreground(window_spec: WindowSpec) -> bool:
+    if not WINDOWS:
+        return True
     hwnd = get_window_spec_id(window_spec)
     if hwnd is not None:
         active_window_handle = ctypes.windll.user32.GetForegroundWindow()

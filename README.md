@@ -46,6 +46,19 @@ feature request or issue reports join the [discord](https://discord.gg/YyzaPhAN6
 - Use the hotkeys listed in d4lf.exe to run filtering. By default, F11 will run the loot filter and filter your items.
 - For most common issues, if something is wrong, you will see an error or warning when you start d4lf.exe
 
+### Uruchamianie na macOS
+
+Poniższe kroki pozwalają uruchomić D4LF z poziomu macOS, np. gdy Diablo IV jest streamowane w oknie (GeForce Now lub inny klient). Wsparcie dla TTS korzysta z bibliotek Windows, dlatego na Macu tryb odczytu głosowego jest wyłączany automatycznie, a okno gry jest traktowane jako cały główny monitor.
+
+1. Zainstaluj [Homebrew](https://brew.sh/) (jeśli nie masz) i dodaj aktualnego Pythona: `brew install python`.
+2. W katalogu repozytorium utwórz środowisko wirtualne: `python3 -m venv .venv`.
+3. Aktywuj środowisko: `source .venv/bin/activate`.
+4. Zainstaluj zależności: `pip install --upgrade pip` oraz `pip install -e .`.
+5. Upewnij się, że okno streamowanej gry jest ustawione na głównym monitorze i ma proporcje pomiędzy 16:10 a 21:9.
+6. Uruchom aplikację w trybie tekstowym: `python -m src.main`. W razie potrzeby możesz uruchomić GUI poleceniem `python -m src.main --gui`.
+7. W pliku `params.ini` ustaw `process_name` zgodnie z nazwą procesu/okna streamera (np. klienta GeForce Now), a `vision_mode_only` na `true`, jeśli nie chcesz, aby aplikacja sterowała myszą.
+8. Po uruchomieniu odczytaj w konsoli skróty i działanie filtrów; interfejs głosowy nie będzie aktywny, ale pozostałe funkcje filtrowania działają normalnie.
+
 ### Updating an existing installation
 
 All configurations are stored in a separate location so all you need to do is download the newest version and delete your old version.
