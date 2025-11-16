@@ -2,10 +2,8 @@ import enum
 import logging
 import queue
 import re
+import sys
 import threading
-
-import win32file
-import win32pipe
 
 from src.config.helper import singleton
 
@@ -14,6 +12,12 @@ CONNECTED = False
 LOGGER = logging.getLogger(__name__)
 _DATA_QUEUE = queue.Queue(maxsize=100)
 TO_FILTER = ["Champions who earn the favor of"]
+
+WINDOWS = sys.platform == "win32"
+
+if WINDOWS:
+    import win32file
+    import win32pipe
 
 
 class ItemIdentifiers(enum.Enum):
@@ -56,6 +60,9 @@ class Publisher:
 
 
 def create_pipe() -> int:
+    if not WINDOWS:
+        raise RuntimeError("TTS pipe creation is only supported on Windows.")
+
     return win32pipe.CreateNamedPipe(
         r"\\.\pipe\d4lf",
         win32pipe.PIPE_ACCESS_INBOUND,
@@ -69,6 +76,9 @@ def create_pipe() -> int:
 
 
 def read_pipe() -> None:
+    if not WINDOWS:
+        LOGGER.warning("TTS listener is disabled on non-Windows platforms.")
+        return
     while True:
         handle = create_pipe()
         LOGGER.debug("Waiting for TTS client to connect")
@@ -131,6 +141,10 @@ def fix_data(data: str) -> str:
 
 
 def start_connection() -> None:
+    if not WINDOWS:
+        LOGGER.warning("TTS integration currently works only on Windows. Skipping TTS listener startup.")
+        return
+
     LOGGER.info("Starting tts listener")
     threading.Thread(target=Publisher().find_item, daemon=True).start()
     threading.Thread(target=read_pipe, daemon=True).start()
